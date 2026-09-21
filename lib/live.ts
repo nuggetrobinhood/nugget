@@ -27,8 +27,8 @@ query PoolTrades($network: evm_network, $pool: String, $since: DateTime) {
       Block { Time }
       Transaction { Hash From }
       Trade {
-        Buy  { AmountInUSD Price Currency { Symbol SmartContract } }
-        Sell { AmountInUSD Currency { Symbol SmartContract } }
+        Buy  { Amount AmountInUSD Price Currency { Symbol SmartContract } }
+        Sell { Amount AmountInUSD Currency { Symbol SmartContract } }
       }
     }
   }
@@ -96,15 +96,21 @@ export async function getPoolLive(poolId: string, token0Symbol: string): Promise
     const from: string = (t?.Transaction?.From ?? "").toLowerCase();
     if (from) traders.add(from);
     if (amountUsd > 0) amounts.push(amountUsd);
-    const price = Number(t?.Trade?.Buy?.Price ?? 0) || null;
-    if (priceLast === null && price) priceLast = price;
+    // token0's USD price = its side's AmountInUSD ÷ Amount (direction-safe)
+    const buyAmt = Number(t?.Trade?.Buy?.Amount ?? 0);
+    const sellAmt = Number(t?.Trade?.Sell?.Amount ?? 0);
+    const t0 = token0Symbol.toUpperCase();
+    let priceUsd: number | null = null;
+    if (buySym.toUpperCase() === t0 && buyAmt > 0 && buyUsd > 0) priceUsd = buyUsd / buyAmt;
+    else if (sellSym.toUpperCase() === t0 && sellAmt > 0 && sellUsd > 0) priceUsd = sellUsd / sellAmt;
+    if (priceLast === null && priceUsd) priceLast = priceUsd;
     swaps.push({
       time: t?.Block?.Time ?? "",
       type,
       inSym: type === "BUY" ? sellSym : buySym,
       outSym: type === "BUY" ? buySym : sellSym,
       amountUsd,
-      priceUsd: price,
+      priceUsd,
       hash: t?.Transaction?.Hash ?? "",
       trader: from,
     });
