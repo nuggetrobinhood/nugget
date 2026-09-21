@@ -3,12 +3,11 @@
 import type { TickerItem } from "../lib/model";
 
 function fmtUsd(n: number): string {
-  if (n >= 1) return `$${n.toFixed(n >= 100 ? 2 : 3)}`;
-  return `$${n.toFixed(6)}`;
-}
-function fmtQuote(n: number): string {
-  if (n >= 1) return n.toFixed(4);
-  return n.toPrecision(4);
+  if (n >= 1000) return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.01) return `$${n.toFixed(4)}`;
+  if (n >= 0.000001) return `$${n.toFixed(6)}`;
+  return "<$0.000001";
 }
 
 export function PriceTicker({ items }: { items: TickerItem[] }) {
@@ -21,9 +20,7 @@ export function PriceTicker({ items }: { items: TickerItem[] }) {
         {loop.map((it, i) => (
           <span className="tick" key={i}>
             <b>{it.sym}</b>
-            <span className="tprice">
-              {it.usd ? fmtUsd(it.price) : `${fmtQuote(it.price)} ${it.quote}`}
-            </span>
+            <span className="tprice">{fmtUsd(it.price)}</span>
           </span>
         ))}
       </div>

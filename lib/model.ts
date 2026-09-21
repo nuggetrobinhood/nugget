@@ -123,6 +123,8 @@ export interface LivePool {
   priceLast: number | null;
   uniqueTraders: number;
   windowHours: number;
+  token0Addr: string | null;
+  token1Addr: string | null;
 }
 
 // --- ticker (top price marquee) --------------------------------------------

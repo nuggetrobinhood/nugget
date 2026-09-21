@@ -27,8 +27,8 @@ query PoolTrades($network: evm_network, $pool: String, $since: DateTime) {
       Block { Time }
       Transaction { Hash From }
       Trade {
-        Buy  { AmountInUSD Price Currency { Symbol } }
-        Sell { AmountInUSD Currency { Symbol } }
+        Buy  { AmountInUSD Price Currency { Symbol SmartContract } }
+        Sell { AmountInUSD Currency { Symbol SmartContract } }
       }
     }
   }
@@ -69,6 +69,8 @@ export async function getPoolLive(poolId: string, token0Symbol: string): Promise
   let buys = 0;
   let sells = 0;
   let priceLast: number | null = null;
+  let token0Addr: string | null = null;
+  let token1Addr: string | null = null;
 
   for (const t of rows) {
     const buyUsd = Number(t?.Trade?.Buy?.AmountInUSD ?? 0);
@@ -76,9 +78,21 @@ export async function getPoolLive(poolId: string, token0Symbol: string): Promise
     const amountUsd = Math.max(buyUsd, sellUsd);
     const buySym: string = t?.Trade?.Buy?.Currency?.Symbol ?? "?";
     const sellSym: string = t?.Trade?.Sell?.Currency?.Symbol ?? "?";
+    const buyAddr: string | undefined = t?.Trade?.Buy?.Currency?.SmartContract;
+    const sellAddr: string | undefined = t?.Trade?.Sell?.Currency?.SmartContract;
     // "BUY" = someone bought the base token (token0) of the pool
     const type: "BUY" | "SELL" = buySym.toUpperCase() === token0Symbol.toUpperCase() ? "BUY" : "SELL";
     if (type === "BUY") buys++; else sells++;
+    // capture token addresses once, oriented to token0 / token1
+    if (token0Addr === null && buyAddr && sellAddr) {
+      if (buySym.toUpperCase() === token0Symbol.toUpperCase()) {
+        token0Addr = buyAddr.toLowerCase();
+        token1Addr = sellAddr.toLowerCase();
+      } else {
+        token0Addr = sellAddr.toLowerCase();
+        token1Addr = buyAddr.toLowerCase();
+      }
+    }
     const from: string = (t?.Transaction?.From ?? "").toLowerCase();
     if (from) traders.add(from);
     if (amountUsd > 0) amounts.push(amountUsd);
@@ -107,5 +121,7 @@ export async function getPoolLive(poolId: string, token0Symbol: string): Promise
     priceLast,
     uniqueTraders: traders.size,
     windowHours: WINDOW_HOURS,
+    token0Addr,
+    token1Addr,
   };
 }

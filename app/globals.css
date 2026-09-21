@@ -481,3 +481,14 @@ button { font-family: inherit; }
 @media (max-width: 900px) {
   .heatgrid { grid-template-columns: 1fr; }
 }
+
+/* ---- pool addresses ---- */
+.addr-list { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.addr-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.ar-l { color: var(--muted); min-width: 54px; font-weight: 500; }
+.ar-a { color: var(--txt); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+.ar-a:hover { color: var(--green-hi); }
+.copy { margin-left: auto; background: var(--panel-2); border: 1px solid var(--line-2); color: var(--muted); border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 600; cursor: pointer; }
+.copy:hover { color: var(--txt); border-color: var(--faint); }
+.btn-ghost2 { padding: 11px 15px; border: 1px solid var(--line-2); border-radius: 10px; color: var(--muted); font-family: var(--disp); font-weight: 600; font-size: 13px; }
+.btn-ghost2:hover { color: var(--txt); border-color: var(--faint); }

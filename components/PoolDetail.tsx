@@ -3,10 +3,36 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { PoolDetail as PoolDetailData, LivePool, PoolSignal } from "../lib/model";
-import { usd, apr, price, feeTierPct, multiple, hhmm, RISK_LABELS } from "../lib/format";
+import { usd, apr, poolPrice, feeTierPct, multiple, hhmm, RISK_LABELS } from "../lib/format";
 import { ComboChart } from "./ComboChart";
 
-const UNISWAP_URL = "https://app.uniswap.org";
+const GT_BASE = "https://www.geckoterminal.com/robinhood";
+const shortAddr = (a: string | null | undefined) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—");
+
+function CopyBtn({ text }: { text: string }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button
+      className="copy"
+      onClick={(e) => {
+        e.preventDefault();
+        try { navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200); } catch { /* ignore */ }
+      }}
+    >
+      {ok ? "✓ copied" : "copy"}
+    </button>
+  );
+}
+
+function AddrRow({ label, addr, kind }: { label: string; addr: string; kind: "pools" | "tokens" }) {
+  return (
+    <div className="addr-row">
+      <span className="ar-l">{label}</span>
+      <a className="ar-a" href={`${GT_BASE}/${kind}/${addr}`} target="_blank" rel="noreferrer">{shortAddr(addr)} ↗</a>
+      <CopyBtn text={addr} />
+    </div>
+  );
+}
 const PALETTE = ["#00c805", "#22d3ee", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#f87171", "#60a5fa", "#f59e0b", "#2dd4bf"];
 function tokColor(sym: string): string {
   let n = 0;
@@ -47,6 +73,10 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
   }
 
   const cooling = s.velocity === "COOLING";
+  const gtPool = `${GT_BASE}/pools/${s.id}`;
+  const addLpUrl = live?.token0Addr && live?.token1Addr
+    ? `https://app.uniswap.org/#/add/${live.token0Addr}/${live.token1Addr}${s.feeTier ? `/${s.feeTier}` : ""}`
+    : gtPool;
   const tvl = s.tvlUsd;
   const vol24 = s.volumeUsd;
   const fees24 = h.h24;
@@ -81,7 +111,8 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
           <button className={`watch-btn ${watched ? "on" : ""}`} onClick={toggleWatch}>
             {watched ? "★ Watching" : "☆ Watch"}
           </button>
-          <a className="btn-add" href={UNISWAP_URL} target="_blank" rel="noreferrer">Add liquidity ↗</a>
+          <a className="btn-ghost2" href={gtPool} target="_blank" rel="noreferrer">Open pool ↗</a>
+          <a className="btn-add" href={addLpUrl} target="_blank" rel="noreferrer">Add liquidity ↗</a>
         </div>
       </div>
 
@@ -115,7 +146,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
           {tab === "Price & Volatility" && (
             <div className="panel">
               <div className="panel-h"><div className="t">Price &amp; Volatility<small>{s.token0Symbol} in {s.token1Symbol}</small></div></div>
-              <div className="big-price">{price(s.priceClose)}</div>
+              <div className="big-price">{poolPrice(s.priceClose, s.token1Symbol)}</div>
               <div className="chart-simple tall" style={{ marginTop: 14 }}>
                 {series.map((w, i) => {
                   const prices = series.map((x) => x.priceClose ?? 0);
@@ -142,7 +173,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
             <>
               <div className="panel">
                 <div className="panel-h"><div className="t">Price range &amp; liquidity<small>Uniswap {s.dex.replace("uniswap-", "")}</small></div></div>
-                <div className="prl-price">Current price <b>{price(s.priceClose)}</b></div>
+                <div className="prl-price">Current price <b>{poolPrice(s.priceClose, s.token1Symbol)}</b></div>
                 <div className="prl-hist">
                   {Array.from({ length: 40 }).map((_, i) => {
                     const d = Math.abs(i - 20);
@@ -191,7 +222,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
                         <span>{sw.inSym}</span>
                         <span>{sw.outSym}</span>
                         <span className="num">{usd(sw.amountUsd)}</span>
-                        <span className="num">{sw.priceUsd !== null ? price(sw.priceUsd) : "—"}</span>
+                        <span className="num">{sw.priceUsd !== null ? poolPrice(sw.priceUsd, s.token1Symbol) : "—"}</span>
                         <span className="mono dim">{shortHash(sw.hash)}</span>
                       </div>
                     ))}
@@ -245,10 +276,14 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
           <div className="panel">
             <div className="panel-h"><div className="t">Token details</div></div>
             <div className="ov">
-              <div className="ovrow"><span className="kk"><span className="tdot" style={{ background: tokColor(s.token0Symbol) }} />{s.token0Symbol}</span><b>{price(s.priceClose)}</b></div>
+              <div className="ovrow"><span className="kk"><span className="tdot" style={{ background: tokColor(s.token0Symbol) }} />{s.token0Symbol}</span><b>{poolPrice(s.priceClose, s.token1Symbol)}</b></div>
               <div className="ovrow"><span className="kk"><span className="tdot" style={{ background: tokColor(s.token1Symbol) }} />{s.token1Symbol}</span><b className="dim">quote</b></div>
             </div>
-            <div className="pd-soon-inline sm"><span className="soon-badge">Coming soon</span>Reserve split & composition — needs pool-state ingest.</div>
+            <div className="addr-list">
+              <AddrRow label="Pool" addr={s.id} kind="pools" />
+              {live?.token0Addr && <AddrRow label={s.token0Symbol} addr={live.token0Addr} kind="tokens" />}
+              {live?.token1Addr && <AddrRow label={s.token1Symbol} addr={live.token1Addr} kind="tokens" />}
+            </div>
           </div>
         </div>
       </div>

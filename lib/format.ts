@@ -26,6 +26,29 @@ export function price(n: number | null): string {
   return `$${n.toFixed(6)}`;
 }
 
+// USD-stable quote tokens on Robinhood Chain.
+const USD_SYMS = new Set(["USDG", "USDB", "USDC", "USDT", "DAI", "USD", "FRAX", "GHO", "USDE", "PYUSD"]);
+export function isUsdQuote(sym: string | null | undefined): boolean {
+  return sym ? USD_SYMS.has(sym.toUpperCase()) : false;
+}
+
+function niceNum(n: number): string {
+  if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (n >= 1) return n.toFixed(3);
+  if (n >= 0.0001) return n.toFixed(6);
+  return "<0.0001";
+}
+
+/**
+ * A pool price is stored as token0-in-token1 — only a USD figure when the quote
+ * token is a USD stable. Otherwise it's a ratio, so we label it with the quote
+ * symbol instead of a misleading "$".
+ */
+export function poolPrice(n: number | null, quoteSym: string): string {
+  if (n === null || !(n > 0)) return "—";
+  return isUsdQuote(quoteSym) ? `$${niceNum(n)}` : `${niceNum(n)} ${quoteSym}`;
+}
+
 export function apr(n: number | null): string {
   if (n === null) return "—";
   if (n >= 1000) return `~${(n / 1000).toFixed(1)}k%`;
