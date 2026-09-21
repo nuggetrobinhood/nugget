@@ -320,24 +320,17 @@ export async function getTicker(): Promise<TickerItem[]> {
   for (const r of (pulse ?? []) as { pool_id: string; price_close: number | null }[]) {
     if (r.price_close !== null && r.price_close !== undefined) latest.set(r.pool_id, Number(r.price_close));
   }
-  // Only pools with exactly ONE USD-stable side give a meaningful USD price.
-  // Show the non-stable token, oriented (invert when the stable is token0), and
-  // dedupe by symbol so a token appears once.
+  // price_close is now token0's USD price (derived from AmountInUSD ÷ Amount in
+  // the ingest). Show each pool's token0, skip USD stables, dedupe by symbol.
   const bySym = new Map<string, TickerItem>();
   for (const p of (pools ?? []) as { id: string; token0_symbol: string; token1_symbol: string }[]) {
     const price = latest.get(p.id);
-    if (price === undefined || !(price > 0)) continue;
-    const s0 = USD_QUOTES.has(String(p.token0_symbol).toUpperCase());
-    const s1 = USD_QUOTES.has(String(p.token1_symbol).toUpperCase());
-    if (s0 === s1) continue; // need exactly one stable side
-    let sym: string;
-    let usdPrice: number;
-    if (s1) { sym = p.token0_symbol; usdPrice = price; } // token0 priced in USD
-    else { sym = p.token1_symbol; usdPrice = 1 / price; } // token1 is non-stable → invert
-    if (!(usdPrice > 0) || usdPrice > 1e7 || usdPrice < 1e-9) continue;
-    const key = sym.toUpperCase();
+    if (price === undefined || !(price > 0) || price > 1e7) continue;
+    const sym = p.token0_symbol;
+    if (USD_QUOTES.has(String(sym).toUpperCase())) continue; // skip USDG $1 etc.
+    const key = String(sym).toUpperCase();
     if (bySym.has(key)) continue;
-    bySym.set(key, { sym, quote: "USD", price: usdPrice, usd: true });
+    bySym.set(key, { sym, quote: "USD", price, usd: true });
   }
   return [...bySym.values()].slice(0, 30);
-}
+      }
