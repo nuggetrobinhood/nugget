@@ -25,7 +25,38 @@ function windowBuckets(w: Window): number {
 }
 
 function client() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false },
+    // Force every read to bypass Next.js's fetch cache — this is live data.
+    global: { fetch: (url, opts) => fetch(url as string, { ...opts, cache: "no-store" }) },
+  });
+}
+
+// Supabase caps a single query at 1000 rows. 24h of 5-minute buckets across all
+// tracked pools is far more than that, so a plain select silently drops the
+// NEWEST rows (freshness freezes). Page through, newest-first, until exhausted.
+async function fetchPulseRows(
+  db: ReturnType<typeof client>,
+  sinceIso: string,
+): Promise<PulseRowDb[]> {
+  const PAGE = 1000;
+  const MAX_PAGES = 24; // safety bound (~24k rows) so a huge backlog can't hang
+  const out: PulseRowDb[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const from = page * PAGE;
+    const { data, error } = await db
+      .from("pool_pulse_5m")
+      .select(
+        "pool_id,bucket_start,fees_usd,volume_usd,liquidity_net_usd,swap_count,unique_traders,top_wallet_pct,price_close",
+      )
+      .gte("bucket_start", sinceIso)
+      .order("bucket_start", { ascending: false }) // newest first — recency is never dropped
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...(data as PulseRowDb[]));
+    if (data.length < PAGE) break;
+  }
+  return out;
 }
 
 interface PulseRowDb {
@@ -93,16 +124,12 @@ function toBucket(r: PulseRowDb): Bucket {
 async function loadRaw() {
   const db = client();
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const [{ data: pools }, { data: pulse }] = await Promise.all([
+  const [{ data: pools }, pulse] = await Promise.all([
     db.from("pools").select("id,dex,token0_symbol,token1_symbol,fee_tier,tvl_usd,first_seen").eq("is_active", true),
-    db
-      .from("pool_pulse_5m")
-      .select("pool_id,bucket_start,fees_usd,volume_usd,liquidity_net_usd,swap_count,unique_traders,top_wallet_pct,price_close")
-      .gte("bucket_start", since)
-      .order("bucket_start", { ascending: true }),
+    fetchPulseRows(db, since),
   ]);
   const byPool = new Map<string, Bucket[]>();
-  for (const r of (pulse ?? []) as PulseRowDb[]) {
+  for (const r of pulse) {
     const arr = byPool.get(r.pool_id) ?? [];
     arr.push(toBucket(r));
     byPool.set(r.pool_id, arr);
@@ -314,11 +341,14 @@ export async function getTicker(): Promise<TickerItem[]> {
       .from("pool_pulse_5m")
       .select("pool_id,price_close,bucket_start")
       .gte("bucket_start", since)
-      .order("bucket_start", { ascending: true }),
+      .order("bucket_start", { ascending: false }) // newest first — first price per pool wins
+      .limit(1000),
   ]);
   const latest = new Map<string, number>();
   for (const r of (pulse ?? []) as { pool_id: string; price_close: number | null }[]) {
-    if (r.price_close !== null && r.price_close !== undefined) latest.set(r.pool_id, Number(r.price_close));
+    if (r.price_close !== null && r.price_close !== undefined && !latest.has(r.pool_id)) {
+      latest.set(r.pool_id, Number(r.price_close));
+    }
   }
   // price_close is now token0's USD price (derived from AmountInUSD ÷ Amount in
   // the ingest). Show each pool's token0, skip USD stables, dedupe by symbol.
@@ -333,4 +363,4 @@ export async function getTicker(): Promise<TickerItem[]> {
     bySym.set(key, { sym, quote: "USD", price, usd: true });
   }
   return [...bySym.values()].slice(0, 30);
-      }
+}
