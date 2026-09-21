@@ -125,6 +125,14 @@ export interface LivePool {
   windowHours: number;
 }
 
+// --- ticker (top price marquee) --------------------------------------------
+export interface TickerItem {
+  sym: string;
+  quote: string;
+  price: number;
+  usd: boolean; // true when the quote token is a USD stable (price ≈ USD)
+}
+
 // --- signals (computed from stored data) -----------------------------------
 export interface PoolSignal {
   title: string;

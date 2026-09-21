@@ -20,8 +20,8 @@
   --gold-hi: #ffcf4d;
   --amber: #ffb020;
   --blue: #8fb6ff;
-  --disp: "Inter Tight", "Inter", system-ui, sans-serif;
-  --body: "Inter", system-ui, -apple-system, sans-serif;
+  --disp: "Geist", "Inter", system-ui, sans-serif;
+  --body: "Geist", "Inter", system-ui, -apple-system, sans-serif;
   --radius: 14px;
 }
 
@@ -382,4 +382,102 @@ button { font-family: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
+}
+
+/* ============================================================================
+   Cosmetic pass: ticker · splash · heating cards · combo chart · pagination
+   ========================================================================== */
+
+/* ---- price ticker ---- */
+.ticker { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); margin-bottom: 18px; }
+.ticker-track { display: inline-flex; white-space: nowrap; animation: marquee 55s linear infinite; }
+.ticker:hover .ticker-track { animation-play-state: paused; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.tick { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-right: 1px solid var(--line); font-size: 12.5px; }
+.tick b { font-family: var(--disp); font-weight: 700; color: var(--txt); }
+.tprice { color: var(--green-hi); font-family: var(--disp); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---- splash ---- */
+.splash { position: fixed; inset: 0; z-index: 1000; background: var(--bg); display: grid; place-items: center; animation: splashCycle 1.9s ease forwards; }
+@keyframes splashCycle { 0% { opacity: 0; } 12% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+.splash-scene { text-align: center; }
+.splash-scene .nug { transform-origin: 120px 100px; animation: fry 0.5s ease-in-out infinite alternate; }
+@keyframes fry { from { transform: translateY(0) rotate(-3deg); } to { transform: translateY(-9px) rotate(3deg); } }
+.splash-scene .steam path { animation: steam 1.5s ease-in-out infinite; }
+.splash-scene .steam path:nth-child(2) { animation-delay: 0.3s; }
+.splash-scene .steam path:nth-child(3) { animation-delay: 0.6s; }
+@keyframes steam { 0% { opacity: 0; transform: translateY(6px); } 50% { opacity: 0.55; } 100% { opacity: 0; transform: translateY(-8px); } }
+.splash-text { font-family: var(--disp); font-weight: 700; font-size: 18px; margin-top: 12px; letter-spacing: 0.01em; }
+.splash-text .dots i { font-style: normal; animation: blink 1.3s infinite; }
+.splash-text .dots i:nth-child(2) { animation-delay: 0.2s; }
+.splash-text .dots i:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+
+/* ---- section row (Heating now) ---- */
+.section-row { display: flex; align-items: center; gap: 9px; margin-top: 26px; margin-bottom: 12px; font-family: var(--disp); font-weight: 700; font-size: 16px; }
+.section-row small { color: var(--faint); font-weight: 400; font-family: var(--body); font-size: 12px; margin-left: 2px; }
+.flame-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 9px 1px rgba(255, 176, 32, 0.6); animation: breathe 1.6s ease-in-out infinite; }
+
+/* ---- heating cards ---- */
+.heatgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.heatcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px; display: block; transition: 0.14s; position: relative; overflow: hidden; }
+.heatcard::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: linear-gradient(180deg, var(--amber), var(--green)); }
+.heatcard:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.hc-top { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.tok.sm { width: 26px; height: 26px; font-size: 10px; }
+.hc-pair { font-family: var(--disp); font-weight: 700; font-size: 14px; flex: 1; min-width: 0; }
+.hc-flame { font-family: var(--disp); font-weight: 700; font-size: 12px; color: var(--green-hi); background: var(--green-dim); padding: 3px 8px; border-radius: 7px; }
+.hc-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 3px 0; }
+.hc-row b { font-family: var(--disp); font-weight: 600; color: var(--txt); font-variant-numeric: tabular-nums; }
+.hc-spark { width: 100%; height: 26px; margin-top: 8px; display: block; }
+
+/* ---- pagination ---- */
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; }
+.pg { background: var(--panel); border: 1px solid var(--line-2); color: var(--muted); border-radius: 9px; padding: 8px 14px; font-family: var(--disp); font-weight: 600; font-size: 13px; cursor: pointer; }
+.pg:hover:not(:disabled) { color: var(--txt); border-color: var(--faint); }
+.pg:disabled { opacity: 0.4; cursor: default; }
+.pg-nums { display: flex; gap: 4px; }
+.pg-n { width: 32px; height: 32px; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--muted); font-family: var(--disp); font-weight: 600; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.pg-n:hover { color: var(--txt); }
+.pg-n.on { background: var(--green); color: #04140a; }
+
+/* ---- combo chart ---- */
+.combo { display: grid; grid-template-columns: 46px 1fr 46px; grid-template-areas: "yl plot yr" "sp x sp2" "lg lg lg"; gap: 4px 8px; }
+.combo-yl, .combo-yr { display: flex; flex-direction: column; justify-content: space-between; font-size: 9.5px; color: var(--faint); font-variant-numeric: tabular-nums; padding: 2px 0; }
+.combo-yl { grid-area: yl; text-align: right; }
+.combo-yr { grid-area: yr; text-align: left; }
+.combo-plot { grid-area: plot; position: relative; }
+.combo-grid { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; }
+.combo-grid i { border-top: 1px dashed var(--line); height: 0; }
+.combo-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 3px; }
+.combo-bars .cbar { flex: 1; background: linear-gradient(180deg, rgba(0, 200, 5, 0.55), rgba(0, 200, 5, 0.12)); border-radius: 3px 3px 0 0; min-height: 2px; transition: filter 0.1s; }
+.combo-bars .cbar.sel { filter: brightness(1.4); }
+.combo-bars .cbar.now { box-shadow: 0 0 10px 1px rgba(0, 200, 5, 0.5); }
+.combo-line { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.combo-tip { position: absolute; top: 4px; transform: translateX(-50%); background: rgba(10, 13, 17, 0.95); border: 1px solid var(--line-2); border-radius: 9px; padding: 8px 10px; font-size: 11px; color: var(--muted); pointer-events: none; white-space: nowrap; z-index: 3; }
+.combo-tip .ct-t { color: var(--txt); font-family: var(--disp); font-weight: 700; margin-bottom: 4px; }
+.combo-tip .ct-r { display: flex; align-items: center; gap: 5px; }
+.combo-tip .ct-r b { color: var(--txt); font-family: var(--disp); font-weight: 600; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.combo-tip .ct-m { color: var(--faint); margin-top: 3px; }
+.combo-tip .d { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+.combo-tip .d.vol { background: var(--green-hi); }
+.combo-tip .d.fee { background: var(--gold); }
+.combo-x { grid-area: x; display: flex; justify-content: space-between; font-size: 10px; color: var(--faint); }
+.combo-legend { grid-area: lg; display: flex; gap: 16px; justify-content: center; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.combo-legend i.lg { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.combo-legend i.lg.vol { background: var(--green-hi); }
+.combo-legend i.lg.fee { background: var(--gold); }
+
+/* ---- price range & liquidity (placeholder) ---- */
+.prl-price { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.prl-price b { color: var(--txt); font-family: var(--disp); font-weight: 700; font-size: 18px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.prl-hist { display: flex; align-items: flex-end; gap: 2px; height: 96px; }
+.prl-hist .prl-bar { flex: 1; background: var(--line-2); border-radius: 2px 2px 0 0; min-height: 4px; opacity: 0.5; }
+.prl-hist .prl-bar.in { background: linear-gradient(180deg, var(--green-hi), rgba(0, 200, 5, 0.3)); opacity: 0.9; }
+.prl-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.prl-legend { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+.prl-legend i.in { width: 10px; height: 10px; border-radius: 3px; background: var(--green-hi); display: inline-block; }
+
+@media (max-width: 900px) {
+  .heatgrid { grid-template-columns: 1fr; }
 }

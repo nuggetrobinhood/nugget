@@ -15,6 +15,7 @@ import type {
   PoolDetail,
   PulseWindow,
   FeeHorizons,
+  TickerItem,
 } from "./model";
 
 const CHART_BUCKETS = 36; // last 3h on the money-flow chart
@@ -298,4 +299,41 @@ export async function getPoolDetail(id: string): Promise<PoolDetail | null> {
     h24: last(288),
   };
   return { summary, series, feeHorizons };
+}
+
+// --- price ticker (top marquee) --------------------------------------------
+const USD_QUOTES = new Set(["USDG", "USDB", "USDC", "USDT", "DAI", "USD", "FRAX", "GHO", "USDE", "PYUSD"]);
+
+export async function getTicker(): Promise<TickerItem[]> {
+  if (!HAS_SUPABASE) return [];
+  const db = client();
+  const since = new Date(Date.now() - 3600 * 1000).toISOString();
+  const [{ data: pools }, { data: pulse }] = await Promise.all([
+    db.from("pools").select("id,token0_symbol,token1_symbol").eq("is_active", true),
+    db
+      .from("pool_pulse_5m")
+      .select("pool_id,price_close,bucket_start")
+      .gte("bucket_start", since)
+      .order("bucket_start", { ascending: true }),
+  ]);
+  const latest = new Map<string, number>();
+  for (const r of (pulse ?? []) as { pool_id: string; price_close: number | null }[]) {
+    if (r.price_close !== null && r.price_close !== undefined) latest.set(r.pool_id, Number(r.price_close));
+  }
+  const out: TickerItem[] = [];
+  const seen = new Set<string>();
+  for (const p of (pools ?? []) as { id: string; token0_symbol: string; token1_symbol: string }[]) {
+    const price = latest.get(p.id);
+    if (price === undefined || !(price > 0)) continue;
+    const key = `${p.token0_symbol}/${p.token1_symbol}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      sym: p.token0_symbol,
+      quote: p.token1_symbol,
+      price,
+      usd: USD_QUOTES.has(String(p.token1_symbol).toUpperCase()),
+    });
+  }
+  return out.slice(0, 30);
 }

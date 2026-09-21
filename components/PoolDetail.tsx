@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { PoolDetail as PoolDetailData, LivePool, PoolSignal } from "../lib/model";
-import { usd, apr, price, feeTierPct, multiple, RISK_LABELS } from "../lib/format";
+import { usd, apr, price, feeTierPct, multiple, hhmm, RISK_LABELS } from "../lib/format";
+import { ComboChart } from "./ComboChart";
 
 const UNISWAP_URL = "https://app.uniswap.org";
 const PALETTE = ["#00c805", "#22d3ee", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#f87171", "#60a5fa", "#f59e0b", "#2dd4bf"];
@@ -53,7 +54,6 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
   const volLiq = tvl ? vol24 / tvl : null;
   const volSpark = series.map((w) => w.volumeUsd);
   const feeSpark = series.map((w) => w.feesUsd);
-  const maxVol = Math.max(1, ...series.map((w) => w.volumeUsd));
   const uniq = live?.uniqueTraders ?? s.uniqueTraders;
 
   return (
@@ -102,12 +102,8 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
         <div className="pd-main">
           {(tab === "Overview" || tab === "Volume & Fees") && (
             <div className="panel">
-              <div className="panel-h"><div className="t">Volume &amp; Fees<small>swap volume per 5-min bucket · last {series.length} windows</small></div></div>
-              <div className="chart-simple tall">
-                {series.map((w, i) => (
-                  <div key={w.bucketStart} className={`b ${i === series.length - 1 ? "now" : ""}`} style={{ height: `${Math.max(3, (w.volumeUsd / maxVol) * 100)}%` }} title={`${usd(w.volumeUsd)} vol · ${usd(w.feesUsd)} fees`} />
-                ))}
-              </div>
+              <div className="panel-h"><div className="t">Volume &amp; Fees<small>per 5-min bucket · last {series.length} windows</small></div></div>
+              <ComboChart points={series.map((w) => ({ label: hhmm(w.bucketStart), volume: w.volumeUsd, fees: w.feesUsd }))} height={200} />
               <div className="horizons" style={{ marginTop: 14 }}>
                 {([["5m", h.m5], ["30m", h.m30], ["1h", h.h1], ["6h", h.h6], ["24h", h.h24]] as const).map(([k, v]) => (
                   <div className="horizon" key={k}><div className="hk">{k} fees</div><div className="hv">{usd(v)}</div></div>
@@ -144,6 +140,24 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
 
           {tab === "Overview" && (
             <>
+              <div className="panel">
+                <div className="panel-h"><div className="t">Price range &amp; liquidity<small>Uniswap {s.dex.replace("uniswap-", "")}</small></div></div>
+                <div className="prl-price">Current price <b>{price(s.priceClose)}</b></div>
+                <div className="prl-hist">
+                  {Array.from({ length: 40 }).map((_, i) => {
+                    const d = Math.abs(i - 20);
+                    const hgt = Math.max(6, 92 * Math.exp(-(d * d) / 95));
+                    const inband = i >= 14 && i <= 26;
+                    return <div key={i} className={`prl-bar ${inband ? "in" : ""}`} style={{ height: `${hgt}%` }} />;
+                  })}
+                </div>
+                <div className="prl-foot">
+                  <span className="prl-legend"><i className="in" />Liquidity distribution</span>
+                  <span className="soon-badge">estimate</span>
+                </div>
+                <div className="pd-soon-inline sm"><span className="soon-badge">Coming soon</span>Real tick-level distribution &amp; in-range % need liquidity-event ingest. The current price above is live.</div>
+              </div>
+
               <div className="panel">
                 <div className="panel-h"><div className="t">Key metrics<small>6h window · live</small></div></div>
                 <div className="km">
