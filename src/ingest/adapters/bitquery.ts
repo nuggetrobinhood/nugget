@@ -8,25 +8,7 @@ import { config } from "../config";
 
 /**
  * Bitquery adapter for Robinhood Chain (chain id 4663).
- *
- * Bitquery already decodes Uniswap v2/v3/v4 on RHC into one schema, so this
- * one adapter covers BOTH v3 and v4 pulse data — that's the whole reason we
- * can include v4 in V1 without maintaining a v4 subgraph ourselves.
- *
- * ---------------------------------------------------------------------------
- * VERIFY-ON-DEPLOY (do this once in https://ide.bitquery.io before first run):
- *   1. Confirm the RHC network slug. Try `network: robinhood` first; Bitquery
- *      sometimes uses a different slug. Set BITQUERY_NETWORK if it differs.
- *   2. Confirm DEXTrades fields (Trade.Buy.AmountInUSD etc.) against the IDE's
- *      autocomplete — Bitquery occasionally renames sub-fields.
- *   3. Liquidity (mint/burn) events: v3 emits Mint/Burn, v4 emits
- *      ModifyLiquidity on the PoolManager. The query below pulls both via the
- *      Events API. If your plan doesn't include decoded events on RHC yet,
- *      swaps still flow and liquidity flow just reads 0 until enabled.
- *
- * Everything downstream is isolated from these details — if a field name is
- * off, you fix it HERE and nowhere else.
- * ---------------------------------------------------------------------------
+ * Covers Uniswap v3 + v4 via one decoded schema.
  */
 
 const NETWORK = process.env.BITQUERY_NETWORK ?? "robinhood";
@@ -102,8 +84,8 @@ query Trades($network: evm_network, $from: DateTime, $to: DateTime, $pools: [Str
       Transaction { From }
       Trade {
         Dex { SmartContract ProtocolVersion }
-        Buy  { AmountInUSD Price Currency { Symbol } }
-        Sell { AmountInUSD Currency { Symbol } }
+        Buy  { Amount AmountInUSD Price Currency { Symbol } }
+        Sell { Amount AmountInUSD Currency { Symbol } }
       }
     }
   }
@@ -118,13 +100,14 @@ export class BitqueryAdapter implements IngestAdapter {
 
   // pool_id -> fee fraction (e.g. 0.0005), cached from listTopPools
   private feeByPool = new Map<string, number>();
+  // pool_id -> token0 symbol, so we can pick token0's USD price per swap
+  private token0ByPool = new Map<string, string>();
 
   async listTopPools(limit: number): Promise<PoolMeta[]> {
     const since = iso(Math.floor(Date.now() / 1000) - 24 * 3600);
     // DEXTradeByTokens groups per TOKEN SIDE, so a single pool spans several
-    // rows (A->B, B->A, and one set per fee tier). Asking for `limit` rows
-    // therefore yields FAR fewer than `limit` distinct pools. Over-fetch, then
-    // dedupe by pool and rank by summed volume, so we surface `limit` real pools.
+    // rows (A->B, B->A, and one set per fee tier). Over-fetch, then dedupe by
+    // pool and rank by summed volume, so we surface `limit` real pools.
     const fetchCount = Math.min(1000, Math.max(300, limit * 6));
     const data = await gql<any>(TOP_POOLS_QUERY, {
       network: NETWORK,
@@ -141,7 +124,6 @@ export class BitqueryAdapter implements IngestAdapter {
       const cur = agg.get(id);
       if (cur) {
         cur.vol += vol;
-        // keep the pair symbols from the highest-volume row for this pool
         if (vol > cur.best) {
           cur.best = vol;
           cur.meta.token0Symbol = r?.Trade?.Currency?.Symbol ?? cur.meta.token0Symbol;
@@ -160,7 +142,6 @@ export class BitqueryAdapter implements IngestAdapter {
         });
       }
     }
-    // rank distinct pools by total volume, take the top `limit`
     return [...agg.values()]
       .sort((a, b) => b.vol - a.vol)
       .slice(0, limit)
@@ -188,10 +169,19 @@ export class BitqueryAdapter implements IngestAdapter {
       const ts = Math.floor(new Date(t?.Block?.Time).getTime() / 1000);
       const buyUsd = Number(t?.Trade?.Buy?.AmountInUSD ?? 0);
       const sellUsd = Number(t?.Trade?.Sell?.AmountInUSD ?? 0);
-      // volume ~ the larger notional side (both should be close)
       const amountUsd = Math.max(buyUsd, sellUsd);
-      const feeFrac = this.feeByPool.get(poolId) ?? 0.003; // default 0.3% if tier unknown
+      const feeFrac = this.feeByPool.get(poolId) ?? 0.003;
       const trader: string | undefined = t?.Transaction?.From;
+      // token0's USD price = its side's AmountInUSD ÷ Amount (direction-safe,
+      // unlike Buy.Price which flips with trade direction).
+      const t0 = this.token0ByPool.get(poolId);
+      const buySym: string | undefined = t?.Trade?.Buy?.Currency?.Symbol;
+      const sellSym: string | undefined = t?.Trade?.Sell?.Currency?.Symbol;
+      const buyAmt = Number(t?.Trade?.Buy?.Amount ?? 0);
+      const sellAmt = Number(t?.Trade?.Sell?.Amount ?? 0);
+      let priceUsd: number | undefined;
+      if (t0 && buySym?.toUpperCase() === t0.toUpperCase() && buyAmt > 0 && buyUsd > 0) priceUsd = buyUsd / buyAmt;
+      else if (t0 && sellSym?.toUpperCase() === t0.toUpperCase() && sellAmt > 0 && sellUsd > 0) priceUsd = sellUsd / sellAmt;
       out.push({
         poolId,
         dex: versionToDex(t?.Trade?.Dex?.ProtocolVersion),
@@ -199,18 +189,20 @@ export class BitqueryAdapter implements IngestAdapter {
         timestamp: ts,
         amountUsd,
         feeUsd: amountUsd * feeFrac,
-        priceToken0InToken1: Number(t?.Trade?.Buy?.Price ?? 0) || undefined,
+        priceToken0InToken1: priceUsd,
         trader: trader ? trader.toLowerCase() : undefined,
       });
     }
-    // NOTE: mint/burn (liquidity flow) events are pulled via the Events API in
-    // a follow-up query once decoded-event access is confirmed on your plan.
-    // Swaps above already power Pulse, Fee Velocity and Pool Activity.
     return out.sort((a, b) => a.timestamp - b.timestamp);
   }
 
   /** Called by the worker after listTopPools to seed fee fractions if known. */
   setFeeTiers(map: Map<string, number>) {
     this.feeByPool = map;
+  }
+
+  /** Seed pool_id -> token0 symbol so per-swap USD price picks the right side. */
+  setToken0Symbols(map: Map<string, string>) {
+    this.token0ByPool = map;
   }
 }
