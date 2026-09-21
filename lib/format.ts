@@ -32,21 +32,14 @@ export function isUsdQuote(sym: string | null | undefined): boolean {
   return sym ? USD_SYMS.has(sym.toUpperCase()) : false;
 }
 
-function niceNum(n: number): string {
-  if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (n >= 1) return n.toFixed(3);
-  if (n >= 0.0001) return n.toFixed(6);
-  return "<0.0001";
-}
-
-/**
- * A pool price is stored as token0-in-token1 — only a USD figure when the quote
- * token is a USD stable. Otherwise it's a ratio, so we label it with the quote
- * symbol instead of a misleading "$".
- */
-export function poolPrice(n: number | null, quoteSym: string): string {
-  if (n === null || !(n > 0)) return "—";
-  return isUsdQuote(quoteSym) ? `$${niceNum(n)}` : `${niceNum(n)} ${quoteSym}`;
+/** A token's USD price (derived from swap AmountInUSD ÷ Amount — direction-safe). */
+export function usdPrice(n: number | null | undefined): string {
+  if (n === null || n === undefined || !(n > 0)) return "—";
+  if (n >= 1000) return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.01) return `$${n.toFixed(4)}`;
+  if (n >= 0.000001) return `$${n.toFixed(6)}`;
+  return "<$0.000001";
 }
 
 export function apr(n: number | null): string {
@@ -66,4 +59,3 @@ export const RISK_LABELS: Record<string, string> = {
   "few-traders": "Few traders",
   "new-pool": "New",
 };
-
