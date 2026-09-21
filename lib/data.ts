@@ -4,10 +4,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, HAS_SUPABASE } from "./env";
 import { classifyVelocity, estApr24h, riskFlags } from "../src/lib/pulse";
+import { classifySegment } from "./model";
 import type {
   Window,
   PulseData,
   Overview,
+  Network,
   ChartPoint,
   PoolRow,
   PoolDetail,
@@ -56,10 +58,11 @@ interface Bucket {
   price: number | null;
 }
 
+const EMPTY_NETWORK: Network = { volumeUsd: 0, feesUsd: 0, activePools: 0, swaps: 0 };
 const EMPTY: PulseData = {
-  window: "5m",
+  window: "24h",
   overview: {
-    window: "5m",
+    window: "24h",
     volumeUsd: 0,
     feesUsd: 0,
     activePools: 0,
@@ -67,8 +70,10 @@ const EMPTY: PulseData = {
     feesRatio: 0,
     activePoolsDelta: 0,
   },
+  network: EMPTY_NETWORK,
   chart: [],
   pools: [],
+  updatedAt: null,
 };
 
 function toBucket(r: PulseRowDb): Bucket {
@@ -138,11 +143,13 @@ function summarizePool(pool: PoolDb, buckets: Bucket[], w: Window): PoolRow | nu
     0,
     ...win.map((b) => (b.traders === null ? 0 : b.traders)),
   );
+  const hasTopWallet = win.some((b) => b.topWallet !== null);
+  const hasTraders = win.some((b) => b.traders !== null);
   const ageMin = (Date.now() - new Date(pool.first_seen).getTime()) / 60000;
   const risks = riskFlags({
     tvlUsd: pool.tvl_usd,
-    topWalletPct: win.some((b) => b.topWallet !== null) ? topWallet : null,
-    uniqueTraders: win.some((b) => b.traders !== null) ? traders : null,
+    topWalletPct: hasTopWallet ? topWallet : null,
+    uniqueTraders: hasTraders ? traders : null,
     poolAgeMinutes: ageMin,
   });
 
@@ -154,6 +161,7 @@ function summarizePool(pool: PoolDb, buckets: Bucket[], w: Window): PoolRow | nu
     token0Symbol: pool.token0_symbol,
     token1Symbol: pool.token1_symbol,
     feeTier: pool.fee_tier,
+    segment: classifySegment(pool.token0_symbol, pool.token1_symbol),
     feesUsd: winFees,
     volumeUsd: winVol,
     liquidityNetUsd: winLiq,
@@ -163,6 +171,10 @@ function summarizePool(pool: PoolDb, buckets: Bucket[], w: Window): PoolRow | nu
     aprEst,
     tvlUsd: pool.tvl_usd,
     risks,
+    topWalletPct: hasTopWallet ? topWallet : null,
+    uniqueTraders: hasTraders ? traders : null,
+    ageMinutes: Number.isFinite(ageMin) ? ageMin : null,
+    spark: asc.slice(-16).map((b) => b.volume),
     priceClose: latest.price,
   };
 }
@@ -197,6 +209,28 @@ function buildOverview(pools: PoolRow[], byPool: Map<string, Bucket[]>, w: Windo
   };
 }
 
+function buildNetwork(byPool: Map<string, Bucket[]>): Network {
+  let volumeUsd = 0,
+    feesUsd = 0,
+    swaps = 0,
+    activePools = 0;
+  for (const buckets of byPool.values()) {
+    let v = 0,
+      f = 0,
+      s = 0;
+    for (const b of buckets) {
+      v += b.volume;
+      f += b.fees;
+      s += b.swaps;
+    }
+    volumeUsd += v;
+    feesUsd += f;
+    swaps += s;
+    if (v > 0 || f > 0) activePools += 1;
+  }
+  return { volumeUsd, feesUsd, swaps, activePools };
+}
+
 function buildChart(byPool: Map<string, Bucket[]>): ChartPoint[] {
   // union of the last CHART_BUCKETS bucket timestamps, chain-wide
   const perBucket = new Map<string, ChartPoint>();
@@ -225,11 +259,15 @@ export async function getPulse(w: Window): Promise<PulseData> {
     .map((p) => summarizePool(p, byPool.get(p.id) ?? [], w))
     .filter((r): r is PoolRow => r !== null && (r.volumeUsd > 0 || r.feesUsd > 0))
     .sort((a, b) => b.feesUsd - a.feesUsd);
+  const chart = buildChart(byPool);
+  const updatedAt = chart.length > 0 ? chart[chart.length - 1]!.bucketStart : null;
   return {
     window: w,
     overview: buildOverview(rows, byPool, w),
-    chart: buildChart(byPool),
+    network: buildNetwork(byPool),
+    chart,
     pools: rows,
+    updatedAt,
   };
 }
 
@@ -240,7 +278,7 @@ export async function getPoolDetail(id: string): Promise<PoolDetail | null> {
   const pool = pools.find((p) => p.id === id);
   if (!pool) return null;
   const buckets = (byPool.get(id) ?? []).sort((a, b) => a.t.localeCompare(b.t));
-  const summary = summarizePool(pool, buckets, "5m");
+  const summary = summarizePool(pool, buckets, "24h");
   if (!summary) return null;
 
   const series: PulseWindow[] = buckets.slice(-24).map((b) => ({

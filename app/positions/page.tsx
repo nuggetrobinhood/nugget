@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Nav, Footer } from "../../components/Chrome";
 import { rangeHealth } from "../../src/lib/pulse";
 import { price } from "../../lib/format";
 
@@ -145,8 +144,7 @@ export default function PositionsPage() {
 
   return (
     <>
-      <Nav active="positions" />
-      <main className="wrap">
+      <div className="narrow">
         <div className="page-head">
           <h1>Positions</h1>
           <p>
@@ -201,8 +199,7 @@ export default function PositionsPage() {
           pulse, then add time-in-range and net P&amp;L (fees − IL) from your
           on-chain position.
         </p>
-      </main>
-      <Footer />
+      </div>
     </>
   );
 }

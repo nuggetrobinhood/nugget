@@ -1,5 +1,4 @@
 import { getPulse } from "../lib/data";
-import { Nav, Footer } from "../components/Chrome";
 import { PulseView } from "../components/PulseView";
 import { WINDOWS, type Window } from "../lib/model";
 
@@ -12,23 +11,8 @@ export default async function PulsePage({
   searchParams: Promise<{ w?: string }>;
 }) {
   const { w } = await searchParams;
-  const window: Window = WINDOWS.includes(w as Window) ? (w as Window) : "5m";
+  const window: Window = WINDOWS.includes(w as Window) ? (w as Window) : "24h";
   const data = await getPulse(window);
 
-  return (
-    <>
-      <Nav active="pulse" />
-      <main className="wrap">
-        <div className="page-head">
-          <h1>Pulse</h1>
-          <p>
-            What&apos;s moving on Robinhood Chain right now. Ranked by the data —
-            not our picks.
-          </p>
-        </div>
-        <PulseView data={data} />
-      </main>
-      <Footer />
-    </>
-  );
+  return <PulseView data={data} />;
 }
