@@ -12,21 +12,6 @@ import { config } from "../config";
  * Bitquery already decodes Uniswap v2/v3/v4 on RHC into one schema, so this
  * one adapter covers BOTH v3 and v4 pulse data — that's the whole reason we
  * can include v4 in V1 without maintaining a v4 subgraph ourselves.
- *
- * ---------------------------------------------------------------------------
- * VERIFY-ON-DEPLOY (do this once in https://ide.bitquery.io before first run):
- *   1. Confirm the RHC network slug. Try `network: robinhood` first; Bitquery
- *      sometimes uses a different slug. Set BITQUERY_NETWORK if it differs.
- *   2. Confirm DEXTrades fields (Trade.Buy.AmountInUSD etc.) against the IDE's
- *      autocomplete — Bitquery occasionally renames sub-fields.
- *   3. Liquidity (mint/burn) events: v3 emits Mint/Burn, v4 emits
- *      ModifyLiquidity on the PoolManager. The query below pulls both via the
- *      Events API. If your plan doesn't include decoded events on RHC yet,
- *      swaps still flow and liquidity flow just reads 0 until enabled.
- *
- * Everything downstream is isolated from these details — if a field name is
- * off, you fix it HERE and nowhere else.
- * ---------------------------------------------------------------------------
  */
 
 const NETWORK = process.env.BITQUERY_NETWORK ?? "robinhood";
@@ -127,20 +112,24 @@ export class BitqueryAdapter implements IngestAdapter {
       limit,
     });
     const rows: any[] = data?.EVM?.DEXTradeByTokens ?? [];
-    const pools: PoolMeta[] = [];
+    // DEXTradeByTokens groups per token side, so the SAME pool (SmartContract)
+    // shows up more than once (A->B and B->A are separate groups). Dedupe by
+    // pool id, keeping the first occurrence — otherwise the batch upsert hits
+    // Postgres' "ON CONFLICT DO UPDATE cannot affect row a second time".
+    const byId = new Map<string, PoolMeta>();
     for (const r of rows) {
       const sc: string | undefined = r?.Trade?.Dex?.SmartContract;
       if (!sc) continue;
       const id = sc.toLowerCase();
-      const dex = versionToDex(r?.Trade?.Dex?.ProtocolVersion);
-      pools.push({
+      if (byId.has(id)) continue;
+      byId.set(id, {
         id,
-        dex,
+        dex: versionToDex(r?.Trade?.Dex?.ProtocolVersion),
         token0Symbol: r?.Trade?.Currency?.Symbol ?? "?",
         token1Symbol: r?.Trade?.Side?.Currency?.Symbol ?? "?",
       });
     }
-    return pools;
+    return [...byId.values()];
   }
 
   async fetchEvents(
@@ -179,9 +168,6 @@ export class BitqueryAdapter implements IngestAdapter {
         trader: trader ? trader.toLowerCase() : undefined,
       });
     }
-    // NOTE: mint/burn (liquidity flow) events are pulled via the Events API in
-    // a follow-up query once decoded-event access is confirmed on your plan.
-    // Swaps above already power Pulse, Fee Velocity and Pool Activity.
     return out.sort((a, b) => a.timestamp - b.timestamp);
   }
 
