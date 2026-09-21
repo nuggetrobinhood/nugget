@@ -77,7 +77,7 @@ query Trades($network: evm_network, $from: DateTime, $to: DateTime, $pools: [Str
         Block: { Time: { since: $from, till: $to } }
         Trade: { Dex: { SmartContract: { in: $pools } } }
       }
-      orderBy: { ascending: Block_Time }
+      orderBy: { descending: Block_Time }
       limit: { count: 25000 }
     ) {
       Block { Time }
