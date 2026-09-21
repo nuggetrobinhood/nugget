@@ -51,10 +51,13 @@ async function main() {
   // seed fee tiers into the Bitquery adapter so fee estimates are accurate
   if (adapter instanceof BitqueryAdapter) {
     const feeMap = new Map<string, number>();
+    const t0Map = new Map<string, string>();
     for (const p of pools) {
       if (p.feeTier) feeMap.set(p.id, p.feeTier / 1_000_000);
+      t0Map.set(p.id, p.token0Symbol);
     }
     adapter.setFeeTiers(feeMap);
+    adapter.setToken0Symbols(t0Map);
   }
 
   // 2. window
