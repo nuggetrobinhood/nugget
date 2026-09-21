@@ -12,6 +12,21 @@ import { config } from "../config";
  * Bitquery already decodes Uniswap v2/v3/v4 on RHC into one schema, so this
  * one adapter covers BOTH v3 and v4 pulse data — that's the whole reason we
  * can include v4 in V1 without maintaining a v4 subgraph ourselves.
+ *
+ * ---------------------------------------------------------------------------
+ * VERIFY-ON-DEPLOY (do this once in https://ide.bitquery.io before first run):
+ *   1. Confirm the RHC network slug. Try `network: robinhood` first; Bitquery
+ *      sometimes uses a different slug. Set BITQUERY_NETWORK if it differs.
+ *   2. Confirm DEXTrades fields (Trade.Buy.AmountInUSD etc.) against the IDE's
+ *      autocomplete — Bitquery occasionally renames sub-fields.
+ *   3. Liquidity (mint/burn) events: v3 emits Mint/Burn, v4 emits
+ *      ModifyLiquidity on the PoolManager. The query below pulls both via the
+ *      Events API. If your plan doesn't include decoded events on RHC yet,
+ *      swaps still flow and liquidity flow just reads 0 until enabled.
+ *
+ * Everything downstream is isolated from these details — if a field name is
+ * off, you fix it HERE and nowhere else.
+ * ---------------------------------------------------------------------------
  */
 
 const NETWORK = process.env.BITQUERY_NETWORK ?? "robinhood";
@@ -106,30 +121,50 @@ export class BitqueryAdapter implements IngestAdapter {
 
   async listTopPools(limit: number): Promise<PoolMeta[]> {
     const since = iso(Math.floor(Date.now() / 1000) - 24 * 3600);
+    // DEXTradeByTokens groups per TOKEN SIDE, so a single pool spans several
+    // rows (A->B, B->A, and one set per fee tier). Asking for `limit` rows
+    // therefore yields FAR fewer than `limit` distinct pools. Over-fetch, then
+    // dedupe by pool and rank by summed volume, so we surface `limit` real pools.
+    const fetchCount = Math.min(1000, Math.max(300, limit * 6));
     const data = await gql<any>(TOP_POOLS_QUERY, {
       network: NETWORK,
       since,
-      limit,
+      limit: fetchCount,
     });
     const rows: any[] = data?.EVM?.DEXTradeByTokens ?? [];
-    // DEXTradeByTokens groups per token side, so the SAME pool (SmartContract)
-    // shows up more than once (A->B and B->A are separate groups). Dedupe by
-    // pool id, keeping the first occurrence — otherwise the batch upsert hits
-    // Postgres' "ON CONFLICT DO UPDATE cannot affect row a second time".
-    const byId = new Map<string, PoolMeta>();
+    const agg = new Map<string, { meta: PoolMeta; vol: number; best: number }>();
     for (const r of rows) {
       const sc: string | undefined = r?.Trade?.Dex?.SmartContract;
       if (!sc) continue;
       const id = sc.toLowerCase();
-      if (byId.has(id)) continue;
-      byId.set(id, {
-        id,
-        dex: versionToDex(r?.Trade?.Dex?.ProtocolVersion),
-        token0Symbol: r?.Trade?.Currency?.Symbol ?? "?",
-        token1Symbol: r?.Trade?.Side?.Currency?.Symbol ?? "?",
-      });
+      const vol = Number(r?.vol ?? 0);
+      const cur = agg.get(id);
+      if (cur) {
+        cur.vol += vol;
+        // keep the pair symbols from the highest-volume row for this pool
+        if (vol > cur.best) {
+          cur.best = vol;
+          cur.meta.token0Symbol = r?.Trade?.Currency?.Symbol ?? cur.meta.token0Symbol;
+          cur.meta.token1Symbol = r?.Trade?.Side?.Currency?.Symbol ?? cur.meta.token1Symbol;
+        }
+      } else {
+        agg.set(id, {
+          vol,
+          best: vol,
+          meta: {
+            id,
+            dex: versionToDex(r?.Trade?.Dex?.ProtocolVersion),
+            token0Symbol: r?.Trade?.Currency?.Symbol ?? "?",
+            token1Symbol: r?.Trade?.Side?.Currency?.Symbol ?? "?",
+          },
+        });
+      }
     }
-    return [...byId.values()];
+    // rank distinct pools by total volume, take the top `limit`
+    return [...agg.values()]
+      .sort((a, b) => b.vol - a.vol)
+      .slice(0, limit)
+      .map((x) => x.meta);
   }
 
   async fetchEvents(
@@ -168,6 +203,9 @@ export class BitqueryAdapter implements IngestAdapter {
         trader: trader ? trader.toLowerCase() : undefined,
       });
     }
+    // NOTE: mint/burn (liquidity flow) events are pulled via the Events API in
+    // a follow-up query once decoded-event access is confirmed on your plan.
+    // Swaps above already power Pulse, Fee Velocity and Pool Activity.
     return out.sort((a, b) => a.timestamp - b.timestamp);
   }
 
