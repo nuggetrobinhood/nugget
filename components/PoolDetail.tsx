@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { PoolDetail as PoolDetailData, LivePool, PoolSignal } from "../lib/model";
-import { usd, apr, poolPrice, feeTierPct, multiple, hhmm, RISK_LABELS } from "../lib/format";
+import { usd, apr, usdPrice, feeTierPct, multiple, hhmm, RISK_LABELS } from "../lib/format";
 import { ComboChart } from "./ComboChart";
 
 const GT_BASE = "https://www.geckoterminal.com/robinhood";
@@ -145,8 +145,8 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
 
           {tab === "Price & Volatility" && (
             <div className="panel">
-              <div className="panel-h"><div className="t">Price &amp; Volatility<small>{s.token0Symbol} in {s.token1Symbol}</small></div></div>
-              <div className="big-price">{poolPrice(s.priceClose, s.token1Symbol)}</div>
+              <div className="panel-h"><div className="t">Price &amp; Volatility<small>{s.token0Symbol} price (USD)</small></div></div>
+              <div className="big-price">{usdPrice(live?.priceLast ?? s.priceClose)}</div>
               <div className="chart-simple tall" style={{ marginTop: 14 }}>
                 {series.map((w, i) => {
                   const prices = series.map((x) => x.priceClose ?? 0);
@@ -173,7 +173,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
             <>
               <div className="panel">
                 <div className="panel-h"><div className="t">Price range &amp; liquidity<small>Uniswap {s.dex.replace("uniswap-", "")}</small></div></div>
-                <div className="prl-price">Current price <b>{poolPrice(s.priceClose, s.token1Symbol)}</b></div>
+                <div className="prl-price">Current price <b>{usdPrice(live?.priceLast ?? s.priceClose)}</b></div>
                 <div className="prl-hist">
                   {Array.from({ length: 40 }).map((_, i) => {
                     const d = Math.abs(i - 20);
@@ -222,7 +222,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
                         <span>{sw.inSym}</span>
                         <span>{sw.outSym}</span>
                         <span className="num">{usd(sw.amountUsd)}</span>
-                        <span className="num">{sw.priceUsd !== null ? poolPrice(sw.priceUsd, s.token1Symbol) : "—"}</span>
+                        <span className="num">{usdPrice(sw.priceUsd)}</span>
                         <span className="mono dim">{shortHash(sw.hash)}</span>
                       </div>
                     ))}
@@ -276,7 +276,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
           <div className="panel">
             <div className="panel-h"><div className="t">Token details</div></div>
             <div className="ov">
-              <div className="ovrow"><span className="kk"><span className="tdot" style={{ background: tokColor(s.token0Symbol) }} />{s.token0Symbol}</span><b>{poolPrice(s.priceClose, s.token1Symbol)}</b></div>
+              <div className="ovrow"><span className="kk"><span className="tdot" style={{ background: tokColor(s.token0Symbol) }} />{s.token0Symbol}</span><b>{usdPrice(live?.priceLast ?? s.priceClose)}</b></div>
               <div className="ovrow"><span className="kk"><span className="tdot" style={{ background: tokColor(s.token1Symbol) }} />{s.token1Symbol}</span><b className="dim">quote</b></div>
             </div>
             <div className="addr-list">
