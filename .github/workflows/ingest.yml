@@ -25,7 +25,7 @@ jobs:
 
       - name: Run ingest
         env:
-          INGEST_ADAPTER: bitquery
+          INGEST_ADAPTER: geckoterminal
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           BITQUERY_API_KEY: ${{ secrets.BITQUERY_API_KEY }}
