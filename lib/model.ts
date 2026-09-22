@@ -2,8 +2,8 @@
 // UI doesn't care whether data came from Supabase or a fallback.
 import type { VelocityLabel, RiskFlag } from "../src/lib/pulse";
 
-export type Window = "5m" | "30m" | "1h" | "24h";
-export const WINDOWS: Window[] = ["5m", "30m", "1h", "24h"];
+export type Window = "5m" | "30m" | "1h" | "6h";
+export const WINDOWS: Window[] = ["5m", "30m", "1h", "6h"];
 
 /** Asset segment for the All / Stocks / USD / Crypto tabs. */
 export type Segment = "stocks" | "usd" | "crypto";
@@ -55,7 +55,7 @@ export interface PoolRow {
   velocity: VelocityLabel;
   velocityRatio: number;
 
-  aprEst: number | null; // est. APR, always 24h-based
+  aprEst: number | null; // est. APR, annualized from the fetched span
   tvlUsd: number | null;
   risks: RiskFlag[];
 

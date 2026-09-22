@@ -100,6 +100,22 @@ export function estApr24h(fees24hUsd: number, tvlUsd: number | null | undefined)
   return (fees24hUsd * 365) / tvlUsd * 100;
 }
 
+/**
+ * Estimated pool APR annualized from however much history we actually have.
+ * We only fetch a short recent window now (to stay light on egress), so APR is
+ * derived from fees over `spanHours` rather than assuming a full 24h. Needs at
+ * least ~30 min of data so a couple of buckets can't blow the number up.
+ */
+export function estAprAnnualized(
+  feesUsd: number,
+  spanHours: number,
+  tvlUsd: number | null | undefined,
+): number | null {
+  if (!tvlUsd || tvlUsd <= 0 || spanHours < 0.5) return null;
+  const feesPerYear = (feesUsd / spanHours) * 24 * 365;
+  return (feesPerYear / tvlUsd) * 100;
+}
+
 export type RiskFlag = "thin-tvl" | "one-wallet" | "few-traders" | "new-pool";
 
 /**

@@ -2,6 +2,7 @@ import type { IngestAdapter } from "../../lib/types";
 import { config } from "../config";
 import { MockAdapter } from "./mock";
 import { BitqueryAdapter } from "./bitquery";
+import { GeckoTerminalAdapter } from "./gecko";
 
 /**
  * Adapter factory. To move NUGGET off Bitquery (e.g. to a Goldsky subgraph or
@@ -12,6 +13,8 @@ export function makeAdapter(): IngestAdapter {
   switch (config.adapter) {
     case "bitquery":
       return new BitqueryAdapter();
+    case "geckoterminal":
+      return new GeckoTerminalAdapter();
     case "mock":
       return new MockAdapter();
     default:

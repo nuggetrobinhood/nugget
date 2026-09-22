@@ -79,7 +79,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
     : gtPool;
   const tvl = s.tvlUsd;
   const vol24 = s.volumeUsd;
-  const fees24 = h.h24;
+  const fees24 = h.h6;
   const feeLiq = tvl ? (fees24 / tvl) * 100 : null;
   const volLiq = tvl ? vol24 / tvl : null;
   const volSpark = series.map((w) => w.volumeUsd);
@@ -118,8 +118,8 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
 
       <div className="pd-stats">
         <StatMini k="TVL (Liquidity)" v={tvl !== null ? usd(tvl) : "—"} spark={volSpark} up />
-        <StatMini k="24h Volume" v={usd(vol24)} ratio={detail.summary.velocityRatio} spark={volSpark} up />
-        <StatMini k="24h Fees" v={usd(fees24)} spark={feeSpark} up />
+        <StatMini k="6h Volume" v={usd(vol24)} ratio={detail.summary.velocityRatio} spark={volSpark} up />
+        <StatMini k="6h Fees" v={usd(fees24)} spark={feeSpark} up />
         <StatMini k="Fee / Liquidity" v={feeLiq !== null ? `${feeLiq.toFixed(2)}%` : "—"} spark={feeSpark} up />
       </div>
 
@@ -136,7 +136,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
               <div className="panel-h"><div className="t">Volume &amp; Fees<small>per 5-min bucket · last {series.length} windows</small></div></div>
               <ComboChart points={series.map((w) => ({ label: hhmm(w.bucketStart), volume: w.volumeUsd, fees: w.feesUsd }))} height={200} />
               <div className="horizons" style={{ marginTop: 14 }}>
-                {([["5m", h.m5], ["30m", h.m30], ["1h", h.h1], ["6h", h.h6], ["24h", h.h24]] as const).map(([k, v]) => (
+                {([["5m", h.m5], ["30m", h.m30], ["1h", h.h1], ["6h", h.h6]] as const).map(([k, v]) => (
                   <div className="horizon" key={k}><div className="hk">{k} fees</div><div className="hv">{usd(v)}</div></div>
                 ))}
               </div>
@@ -145,7 +145,7 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
 
           {tab === "Price & Volatility" && (
             <div className="panel">
-              <div className="panel-h"><div className="t">Price &amp; Volatility<small>{s.token0Symbol} price (USD)</small></div></div>
+              <div className="panel-h"><div className="t">Price &amp; Volatility<small>{s.token0Symbol} in {s.token1Symbol}</small></div></div>
               <div className="big-price">{usdPrice(live?.priceLast ?? s.priceClose)}</div>
               <div className="chart-simple tall" style={{ marginTop: 14 }}>
                 {series.map((w, i) => {
@@ -243,8 +243,8 @@ export function PoolDetail({ detail, live, signals }: { detail: PoolDetailData; 
             <div className="panel-h"><div className="t">Pool overview</div></div>
             <div className="ov">
               <div className="ovrow"><span className="kk">Total liquidity</span><b>{tvl !== null ? usd(tvl) : "—"}</b></div>
-              <div className="ovrow"><span className="kk">24h volume</span><b>{usd(vol24)}</b></div>
-              <div className="ovrow"><span className="kk">24h fees</span><b>{usd(fees24)}</b></div>
+              <div className="ovrow"><span className="kk">6h volume</span><b>{usd(vol24)}</b></div>
+              <div className="ovrow"><span className="kk">6h fees</span><b>{usd(fees24)}</b></div>
               <div className="ovrow"><span className="kk">APR (est.)</span><b className={s.aprEst !== null ? "green" : ""}>{apr(s.aprEst)}</b></div>
               <div className="ovrow"><span className="kk">Fee / liquidity</span><b>{feeLiq !== null ? `${feeLiq.toFixed(2)}%` : "—"}</b></div>
               <div className="ovrow"><span className="kk">Volume / liquidity</span><b>{volLiq !== null ? multiple(volLiq) : "—"}</b></div>

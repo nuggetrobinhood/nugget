@@ -19,9 +19,13 @@ import {
   serverClient,
   upsertPools,
   upsertPulse,
+  prunePulse,
   readCursor,
   writeCursor,
 } from "./supabase";
+import type { IngestAdapter, Pulse5m } from "../lib/types";
+
+const RETENTION_DAYS = 7;
 
 async function main() {
   const started = Date.now();
@@ -91,15 +95,31 @@ async function main() {
     `[nugget] window ${new Date(fromTs * 1000).toISOString()} -> ${new Date(toTs * 1000).toISOString()}`,
   );
 
-  // 3. fetch + rollup + upsert
-  const events = await adapter.fetchEvents(poolIds, fromTs, toTs);
-  console.log(`[nugget] fetched ${events.length} events`);
-  const rows = rollupEvents(events, bucket);
+  const bucketIso = new Date(lastCompletedBucketStart * 1000).toISOString();
+  const retentionCutoff = new Date(Date.now() - RETENTION_DAYS * 86400 * 1000).toISOString();
+
+  // 3. produce + upsert rows
+  let rows: Pulse5m[];
+  const pulseAdapter: IngestAdapter = adapter;
+  if (pulseAdapter.fetchPulseRows) {
+    // Pre-aggregated source (GeckoTerminal): finished rows for the current
+    // bucket, no event rollup. `pools` already carries the m5 snapshot.
+    rows = await pulseAdapter.fetchPulseRows(pools, bucketIso);
+    console.log(`[nugget] built ${rows.length} pulse rows (direct, active pools only)`);
+  } else {
+    const events = await adapter.fetchEvents(poolIds, fromTs, toTs);
+    console.log(`[nugget] fetched ${events.length} events`);
+    rows = rollupEvents(events, bucket);
+  }
   await upsertPulse(db, rows);
   console.log(`[nugget] upserted ${rows.length} pulse rows`);
 
   // 4. advance cursor to the last completed bucket
   await writeCursor(db, adapter.name, lastCompletedBucketStart, `rows=${rows.length}`);
+
+  // 5. prune old buckets so the DB stays small on the free tier
+  await prunePulse(db, retentionCutoff);
+  console.log(`[nugget] pruned buckets older than ${RETENTION_DAYS}d`);
 
   console.log(`[nugget] done in ${((Date.now() - started) / 1000).toFixed(1)}s`);
 }

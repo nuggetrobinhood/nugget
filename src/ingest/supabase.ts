@@ -58,6 +58,20 @@ export async function upsertPulse(db: SupabaseClient, rows: Pulse5m[]) {
   if (error) throw new Error(`upsertPulse failed: ${error.message}`);
 }
 
+/**
+ * Retention: delete pulse rows older than the cutoff. NUGGET only ever reads a
+ * short recent window, so old buckets are dead weight — pruning keeps the DB
+ * tiny and well under Supabase's free-tier size cap (this is the storage-growth
+ * failure that killed TACO). Best-effort: a prune failure never breaks ingest.
+ */
+export async function prunePulse(db: SupabaseClient, olderThanIso: string) {
+  const { error } = await db
+    .from("pool_pulse_5m")
+    .delete()
+    .lt("bucket_start", olderThanIso);
+  if (error) console.warn(`[nugget] prunePulse failed (non-fatal): ${error.message}`);
+}
+
 export async function readCursor(
   db: SupabaseClient,
   source: string,

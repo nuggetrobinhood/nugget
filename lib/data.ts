@@ -3,7 +3,7 @@
 // Server-side only.
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, HAS_SUPABASE } from "./env";
-import { classifyVelocity, estApr24h, riskFlags } from "../src/lib/pulse";
+import { classifyVelocity, estAprAnnualized, riskFlags } from "../src/lib/pulse";
 import { classifySegment } from "./model";
 import type {
   Window,
@@ -19,9 +19,10 @@ import type {
 } from "./model";
 
 const CHART_BUCKETS = 36; // last 3h on the money-flow chart
+const READ_HOURS = 6; // how much recent history we pull — keeps egress light
 
 function windowBuckets(w: Window): number {
-  return { "5m": 1, "30m": 6, "1h": 12, "24h": 288 }[w];
+  return { "5m": 1, "30m": 6, "1h": 12, "6h": 72 }[w];
 }
 
 function client() {
@@ -92,9 +93,9 @@ interface Bucket {
 
 const EMPTY_NETWORK: Network = { volumeUsd: 0, feesUsd: 0, activePools: 0, swaps: 0 };
 const EMPTY: PulseData = {
-  window: "24h",
+  window: "6h",
   overview: {
-    window: "24h",
+    window: "6h",
     volumeUsd: 0,
     feesUsd: 0,
     activePools: 0,
@@ -123,7 +124,7 @@ function toBucket(r: PulseRowDb): Bucket {
 
 async function loadRaw() {
   const db = client();
-  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const since = new Date(Date.now() - READ_HOURS * 3600 * 1000).toISOString();
   const [{ data: pools }, pulse] = await Promise.all([
     db.from("pools").select("id,dex,token0_symbol,token1_symbol,fee_tier,tvl_usd,first_seen").eq("is_active", true),
     fetchPulseRows(db, since),
@@ -158,9 +159,11 @@ function summarizePool(pool: PoolDb, buckets: Bucket[], w: Window): PoolRow | nu
   const curPerBucket = winFees / win.length;
   const vel = classifyVelocity(curPerBucket, priorPerBucket);
 
-  // 24h fees for APR (all fetched buckets ≈ last 24h)
-  const fees24h = sum(asc, "fees");
-  const aprEst = estApr24h(fees24h, pool.tvl_usd);
+  // APR: annualize fees over however much history we actually have (asc spans
+  // the fetched window). 12 five-minute buckets per hour.
+  const feesSpan = sum(asc, "fees");
+  const spanHours = asc.length / 12;
+  const aprEst = estAprAnnualized(feesSpan, spanHours, pool.tvl_usd);
 
   // trust: worst-case over the window
   const topWallet = Math.max(
@@ -306,7 +309,7 @@ export async function getPoolDetail(id: string): Promise<PoolDetail | null> {
   const pool = pools.find((p) => p.id === id);
   if (!pool) return null;
   const buckets = (byPool.get(id) ?? []).sort((a, b) => a.t.localeCompare(b.t));
-  const summary = summarizePool(pool, buckets, "24h");
+  const summary = summarizePool(pool, buckets, "6h");
   if (!summary) return null;
 
   const series: PulseWindow[] = buckets.slice(-24).map((b) => ({

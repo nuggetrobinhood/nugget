@@ -109,7 +109,7 @@ export function PulseView({ data }: { data: PulseData }) {
       <div className="top">
         <div>
           <h1>Pulse</h1>
-          <p className="sub">What&apos;s moving on Robinhood Chain — real-time LP fees, flows, and the trust signals behind them.</p>
+          <p className="sub">Only the pools actually moving on Robinhood Chain right now — ranked by data, not our picks. Quiet pools don&apos;t make the board.</p>
         </div>
         <div className="ctrls">
           <div className="chainpill"><Leaf /> Robinhood Chain</div>
@@ -124,7 +124,7 @@ export function PulseView({ data }: { data: PulseData }) {
         <div className="empty">
           <div className="empty-dot" />
           <h3>Waiting for the first pulse</h3>
-          <p>Active pools appear here — ranked by fees, with est. APR and trust signals — as the ingest worker fills in a few 5-minute windows.</p>
+          <p>Only active pools appear here — ranked by fees, with est. APR and trust signals — as the ingest worker fills in a few 5-minute windows. Quiet pools stay off the board.</p>
           <div className="win" style={{ marginTop: 16 }}>{WINDOWS.map((w) => (<Link key={w} href={`/?w=${w}`} className={w === window ? "on" : ""}>{w}</Link>))}</div>
         </div>
       ) : (
@@ -141,7 +141,7 @@ export function PulseView({ data }: { data: PulseData }) {
               <ComboChart points={comboPoints} />
             </div>
             <div className="panel">
-              <div className="panel-h"><div className="t">Network overview<small>Robinhood Chain · 24h</small></div></div>
+              <div className="panel-h"><div className="t">Network overview<small>Robinhood Chain · last 6h</small></div></div>
               <div className="ov">
                 <div className="ovrow"><span className="kk">Total volume</span><b>{usd(net.volumeUsd)}</b></div>
                 <div className="ovrow"><span className="kk">Total fees</span><b>{usd(net.feesUsd)}</b></div>
@@ -163,7 +163,7 @@ export function PulseView({ data }: { data: PulseData }) {
           )}
 
           <div className="poolshead">
-            <div className="t">Pools <small>{shown.length} active · ranked by fees</small></div>
+            <div className="t">Active pools <small>{shown.length} live now · ranked by fees, not picks</small></div>
             <div className="segs">
               <button className={`seg ${seg === "all" ? "on" : ""}`} onClick={() => pickSeg("all")}>All <span className="c">{pools.length}</span></button>
               <button className={`seg ${seg === "stocks" ? "on" : ""}`} onClick={() => pickSeg("stocks")}>Stocks <span className="c">{counts.stocks}</span></button>
