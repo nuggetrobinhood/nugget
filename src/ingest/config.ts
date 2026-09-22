@@ -17,7 +17,7 @@ function opt(name: string, fallback: string): string {
 export const RHC_CHAIN_ID = 4663;
 
 export const config = {
-  adapter: opt("INGEST_ADAPTER", "mock") as "bitquery" | "mock",
+  adapter: opt("INGEST_ADAPTER", "mock") as "bitquery" | "geckoterminal" | "mock",
 
   supabaseUrl: req("SUPABASE_URL"),
   supabaseServiceKey: req("SUPABASE_SERVICE_ROLE_KEY"),
