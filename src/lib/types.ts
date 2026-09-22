@@ -72,4 +72,12 @@ export interface IngestAdapter {
     fromTs: number,
     toTs: number,
   ): Promise<PoolEvent[]>;
+
+  /**
+   * OPTIONAL. Some sources (e.g. GeckoTerminal) already expose pre-aggregated
+   * rolling windows, so instead of streaming raw events they hand back finished
+   * 5m rows for the current bucket directly — the worker upserts these and skips
+   * the event rollup entirely. Adapters that emit events leave this undefined.
+   */
+  fetchPulseRows?(pools: PoolMeta[], bucketStartIso: string): Promise<Pulse5m[]>;
 }
